@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Call Assistant — Settings</title>
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="page-header">
+      <h1>AI Call Assistant</h1>
+      <p>Configure your backend API and keyboard shortcut for interview support.</p>
+    </header>
+
+    <form id="settings-form" class="form">
+      <section class="section">
+        <h2>Server configuration</h2>
+        <p class="hint">Your API receives a POST with the captured caption and returns a JSON (or plain text) response.</p>
+
+        <label class="field">
+          <span>API URL</span>
+          <input type="url" id="apiUrl" name="apiUrl" placeholder="https://api.example.com/v1/assist" required />
+        </label>
+
+        <label class="field">
+          <span>API key (optional)</span>
+          <input type="password" id="apiKey" name="apiKey" placeholder="sk-..." autocomplete="off" />
+        </label>
+
+        <label class="field">
+          <span>API key header name</span>
+          <input type="text" id="apiKeyHeader" name="apiKeyHeader" placeholder="Authorization" />
+        </label>
+
+        <div class="field-row">
+          <label class="field">
+            <span>Request JSON field</span>
+            <input type="text" id="requestField" name="requestField" placeholder="text" />
+          </label>
+          <label class="field">
+            <span>Response JSON field</span>
+            <input type="text" id="responseField" name="responseField" placeholder="response" />
+          </label>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Caption capture</h2>
+        <p class="hint">Works with Google Meet, Teams, Zoom, and other pages that show live captions in the DOM. Add a custom CSS selector if needed.</p>
+
+        <label class="field">
+          <span>Custom caption selector (optional)</span>
+          <input type="text" id="customSelector" name="customSelector" placeholder=".my-caption-class" />
+        </label>
+      </section>
+
+      <section class="section">
+        <h2>Hotkey</h2>
+        <p class="hint">Press the hotkey during a call to capture the latest caption, send it to your API, and show the response in the sidebar.</p>
+
+        <div class="hotkey-box">
+          <div>
+            <strong id="current-hotkey">Ctrl+Shift+Y</strong>
+            <p class="hint">Default shortcut. Change it in your browser’s extension shortcuts page.</p>
+          </div>
+          <button type="button" id="btn-shortcuts" class="btn btn-secondary">Configure shortcut</button>
+        </div>
+
+        <p class="note">Chrome: <code>chrome://extensions/shortcuts</code> · Edge: <code>edge://extensions/shortcuts</code></p>
+      </section>
+
+      <div class="form-actions">
+        <span id="save-status" class="save-status" aria-live="polite"></span>
+        <button type="submit" class="btn btn-primary">Save settings</button>
+      </div>
+    </form>
+
+    <section class="section api-example">
+      <h2>API contract example</h2>
+      <pre><code>POST /your-endpoint
+Content-Type: application/json
+
+{ "text": "caption from live subtitles" }
+
+// Response
+{ "response": "Suggested answer or translation for the freelancer" }</code></pre>
+    </section>
+  </div>
+
+  <script type="module" src="options.js"></script>
+</body>
+</html>
