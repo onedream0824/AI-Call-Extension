@@ -71,7 +71,8 @@ GET  /threads/:id/history
 
 POST /assist
 { "text": "caption from live subtitles", "threadId": "..." }
-{ "response": "Suggested answer for the freelancer" }</code></pre>
+{ "response": "...", "message": { "id": "...", "caption": "...", "response": "...", "createdAt": 1710000000 } }
+// message is optional; extension appends to cached history</code></pre>
     </section>
   </div>
 

@@ -2,6 +2,7 @@ export const STORAGE_KEYS = {
   apiUrl: "apiUrl",
   customSelector: "customSelector",
   activeThreadId: "activeThreadId",
+  cachedThreadId: "cachedThreadId",
   threads: "threads",
   threadHistory: "threadHistory",
   lastCaption: "lastCaption",

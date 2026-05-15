@@ -8,6 +8,9 @@ const conversation = document.getElementById("conversation");
 const conversationEmpty = document.getElementById("conversation-empty");
 const hotkeyHint = document.getElementById("hotkey-hint");
 
+let lastRenderedCount = 0;
+let lastRenderedThreadId = null;
+
 const newThreadModal = document.getElementById("new-thread-modal");
 const newThreadForm = document.getElementById("new-thread-form");
 const threadTitleInput = document.getElementById("thread-title");
@@ -229,7 +232,7 @@ async function render() {
     : STATUS_LABELS[status] || STATUS_LABELS[STATUS.idle];
 
   renderThreadBar(threads, activeId);
-  renderConversation(history, status, state);
+  renderConversation(history, status, state, activeId);
   updateHotkeyHint();
 }
 
@@ -267,24 +270,37 @@ function renderThreadBar(threads, activeId) {
   activeBtn?.scrollIntoView({ inline: "nearest", block: "nearest" });
 }
 
-function renderConversation(history, status, state) {
+function renderConversation(history, status, state, activeThreadId) {
+  if (activeThreadId !== lastRenderedThreadId) {
+    lastRenderedThreadId = activeThreadId;
+    lastRenderedCount = 0;
+  }
+
   const isBusy = status === STATUS.capturing || status === STATUS.sending;
   const hasPending = isBusy && (state[STORAGE_KEYS.lastCaption] || status !== STATUS.idle);
+  const sorted = [...history].sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
 
-  if (history.length === 0 && !hasPending) {
+  if (sorted.length === 0 && !hasPending) {
     conversationEmpty.hidden = false;
     conversation.querySelectorAll(".conversation-messages, .message-pending").forEach((el) => el.remove());
+    lastRenderedCount = 0;
     return;
   }
 
   conversationEmpty.hidden = true;
 
-  const existing = conversation.querySelector(".conversation-messages");
-  const container = existing || document.createElement("div");
-  container.className = "conversation-messages";
-  if (!existing) conversation.appendChild(container);
+  const stickToBottom =
+    hasPending || sorted.length > lastRenderedCount || status === STATUS.loading;
 
-  container.innerHTML = history.map((item) => renderMessageGroup(item)).join("");
+  let container = conversation.querySelector(".conversation-messages");
+  if (!container) {
+    container = document.createElement("div");
+    container.className = "conversation-messages";
+    conversation.appendChild(container);
+  }
+
+  conversation.querySelectorAll(".message-pending").forEach((el) => el.remove());
+  container.innerHTML = sorted.map((item) => renderMessageGroup(item)).join("");
 
   if (hasPending) {
     const pending = document.createElement("div");
@@ -301,7 +317,13 @@ function renderConversation(history, status, state) {
     container.appendChild(pending);
   }
 
-  container.scrollTop = container.scrollHeight;
+  lastRenderedCount = sorted.length;
+
+  if (stickToBottom) {
+    requestAnimationFrame(() => {
+      conversation.scrollTop = conversation.scrollHeight;
+    });
+  }
 }
 
 function renderMessageGroup(item) {

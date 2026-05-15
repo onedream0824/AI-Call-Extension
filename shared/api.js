@@ -68,14 +68,18 @@ export function normalizeThreads(data) {
     .filter((t) => t.id);
 }
 
-export function normalizeHistory(data) {
-  const list = data?.messages ?? data?.history ?? data?.items ?? (Array.isArray(data) ? data : []);
-  return list.map((m, i) => ({
-    id: String(m.id ?? m.messageId ?? `msg-${i}`),
+export function normalizeMessage(m, index = 0) {
+  return {
+    id: String(m.id ?? m.messageId ?? `msg-${index}-${Date.now()}`),
     caption: m.caption ?? m.text ?? m.input ?? "",
     response: m.response ?? m.output ?? m.answer ?? "",
     createdAt: m.createdAt ?? m.created_at ?? m.at ?? Date.now()
-  }));
+  };
+}
+
+export function normalizeHistory(data) {
+  const list = data?.messages ?? data?.history ?? data?.items ?? (Array.isArray(data) ? data : []);
+  return list.map((m, i) => normalizeMessage(m, i));
 }
 
 export async function fetchThreads(assistUrl) {
@@ -129,7 +133,16 @@ export async function sendCaption(assistUrl, text, threadId) {
     body: JSON.stringify(body)
   });
 
-  return extractResponse(data, API.responseField);
+  const responseText = extractResponse(data, API.responseField);
+  let message = null;
+
+  if (data.message) {
+    message = normalizeMessage(data.message);
+  } else if (Array.isArray(data.messages) && data.messages.length === 1) {
+    message = normalizeMessage(data.messages[0]);
+  }
+
+  return { responseText, message };
 }
 
 function extractResponse(data, fieldPath) {

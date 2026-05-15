@@ -6,6 +6,13 @@ import {
 } from "../shared/api.js";
 import { MESSAGE, STATUS, STORAGE_KEYS } from "../shared/constants.js";
 import { getActiveThreadId, getSettings, setRuntimeState } from "../shared/storage.js";
+import {
+  appendToThreadCache,
+  clearThreadCache,
+  getThreadCache,
+  setThreadCache,
+  sortHistoryChronologically
+} from "../shared/thread-cache.js";
 
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
 
@@ -69,23 +76,35 @@ async function runPipeline() {
       throw new Error("No interview selected. Click + to create one with your resume and job description.");
     }
 
-    const responseText = await sendCaption(settings.apiUrl, caption.trim(), threadId);
+    const { responseText, message } = await sendCaption(settings.apiUrl, caption.trim(), threadId);
+
+    const newMessage = message ?? {
+      id: crypto.randomUUID(),
+      caption: caption.trim(),
+      response: responseText,
+      createdAt: Date.now()
+    };
+
+    if (!newMessage.caption) newMessage.caption = caption.trim();
+    if (!newMessage.response) newMessage.response = responseText;
+
+    const history = await appendToThreadCache(threadId, newMessage);
 
     await setRuntimeState({
       [STORAGE_KEYS.lastResponse]: responseText,
+      [STORAGE_KEYS.threadHistory]: history,
       [STORAGE_KEYS.status]: STATUS.success,
       [STORAGE_KEYS.lastError]: ""
     });
     broadcast(MESSAGE.PIPELINE_UPDATE);
 
-    await refreshThreadHistory(threadId);
-    await loadThreads();
+    await loadThreads({ skipHistory: true });
   } catch (err) {
     await fail(err.message || "Request failed.");
   }
 }
 
-async function loadThreads() {
+async function loadThreads({ skipHistory = false } = {}) {
   const settings = await getSettings();
   if (!settings.apiUrl?.trim()) {
     throw new Error("Backend URL is not configured.");
@@ -106,11 +125,14 @@ async function loadThreads() {
   await setRuntimeState(updates);
   broadcast(MESSAGE.THREADS_UPDATE);
 
-  if (activeId) {
-    await refreshThreadHistory(activeId);
-  } else {
-    await setRuntimeState({ [STORAGE_KEYS.threadHistory]: [] });
-    broadcast(MESSAGE.THREADS_UPDATE);
+  if (!skipHistory) {
+    if (activeId) {
+      await loadFullThreadHistory(activeId);
+    } else {
+      await clearThreadCache();
+      await setRuntimeState({ [STORAGE_KEYS.threadHistory]: [] });
+      broadcast(MESSAGE.THREADS_UPDATE);
+    }
   }
 
   return { threads };
@@ -119,10 +141,40 @@ async function loadThreads() {
 async function selectThread(threadId) {
   if (!threadId) throw new Error("Thread id is required.");
 
+  const cache = await getThreadCache();
   await setRuntimeState({ [STORAGE_KEYS.activeThreadId]: threadId });
-  broadcast(MESSAGE.THREADS_UPDATE);
-  await refreshThreadHistory(threadId);
+
+  if (cache.threadId === threadId) {
+    await setRuntimeState({ [STORAGE_KEYS.threadHistory]: cache.history });
+    broadcast(MESSAGE.THREADS_UPDATE);
+    return { threadId };
+  }
+
+  await loadFullThreadHistory(threadId);
   return { threadId };
+}
+
+async function loadFullThreadHistory(threadId) {
+  const settings = await getSettings();
+
+  await clearThreadCache();
+  await setRuntimeState({
+    [STORAGE_KEYS.status]: STATUS.loading,
+    [STORAGE_KEYS.threadHistory]: []
+  });
+  broadcast(MESSAGE.THREADS_UPDATE);
+
+  const raw = await fetchThreadHistory(settings.apiUrl, threadId);
+  const history = sortHistoryChronologically(raw);
+
+  await setThreadCache(threadId, history);
+  await setRuntimeState({
+    [STORAGE_KEYS.threadHistory]: history,
+    [STORAGE_KEYS.status]: STATUS.idle
+  });
+  broadcast(MESSAGE.THREADS_UPDATE);
+
+  return history;
 }
 
 async function createAndSelectThread(payload) {
@@ -147,24 +199,21 @@ async function createAndSelectThread(payload) {
     jobDescription: payload.jobDescription.trim(),
     resume: { blob, name: payload.resume.name }
   });
+
   const { threads = [] } = await chrome.storage.local.get(STORAGE_KEYS.threads);
   const nextThreads = [thread, ...threads.filter((t) => t.id !== thread.id)];
 
+  await clearThreadCache();
+  await setThreadCache(thread.id, []);
   await setRuntimeState({
     [STORAGE_KEYS.activeThreadId]: thread.id,
     [STORAGE_KEYS.threads]: nextThreads,
-    [STORAGE_KEYS.threadHistory]: []
+    [STORAGE_KEYS.threadHistory]: [],
+    [STORAGE_KEYS.status]: STATUS.idle
   });
   broadcast(MESSAGE.THREADS_UPDATE);
-  await refreshThreadHistory(thread.id);
-  return { thread };
-}
 
-async function refreshThreadHistory(threadId) {
-  const settings = await getSettings();
-  const history = await fetchThreadHistory(settings.apiUrl, threadId);
-  await setRuntimeState({ [STORAGE_KEYS.threadHistory]: history });
-  broadcast(MESSAGE.THREADS_UPDATE);
+  return { thread };
 }
 
 function defaultThreadTitle() {

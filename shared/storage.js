@@ -2,6 +2,7 @@ import { DEFAULTS, STORAGE_KEYS } from "./constants.js";
 
 const RUNTIME_KEYS = [
   STORAGE_KEYS.activeThreadId,
+  STORAGE_KEYS.cachedThreadId,
   STORAGE_KEYS.threads,
   STORAGE_KEYS.threadHistory,
   STORAGE_KEYS.lastCaption,

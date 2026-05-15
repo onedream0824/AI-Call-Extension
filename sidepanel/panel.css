@@ -238,7 +238,9 @@ body {
 .conversation {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 12px 14px 16px;
+  scroll-behavior: smooth;
 }
 
 .conversation-empty {
@@ -253,6 +255,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-height: min-content;
 }
 
 .message-group {
