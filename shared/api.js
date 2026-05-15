@@ -18,10 +18,32 @@ export function assistEndpoint(apiUrl) {
   return `${getApiBase(trimmed)}/assist`;
 }
 
+const RESUME_TYPES = new Set([
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+]);
+
+const RESUME_EXTENSIONS = [".pdf", ".docx"];
+
+export function validateResumeFile(file) {
+  if (!file) return "Resume file is required (PDF or DOCX).";
+  const name = file.name.toLowerCase();
+  const extOk = RESUME_EXTENSIONS.some((ext) => name.endsWith(ext));
+  const typeOk = !file.type || RESUME_TYPES.has(file.type);
+  if (!extOk && !typeOk) return "Resume must be a PDF or DOCX file.";
+  if (file.size > 10 * 1024 * 1024) return "Resume must be 10 MB or smaller.";
+  return null;
+}
+
 async function request(url, options = {}) {
+  const headers = { ...options.headers };
+  if (!(options.body instanceof FormData)) {
+    headers["Content-Type"] = "application/json";
+  }
+
   const res = await fetch(url, {
-    headers: { "Content-Type": "application/json", ...options.headers },
-    ...options
+    ...options,
+    headers
   });
 
   if (!res.ok) {
@@ -62,11 +84,23 @@ export async function fetchThreads(assistUrl) {
   return normalizeThreads(data);
 }
 
-export async function createThread(assistUrl, title) {
-  const url = `${getApiBase(assistUrl)}/threads`;
+export async function createThread(apiUrl, { title, jobDescription, resume }) {
+  if (!jobDescription?.trim()) {
+    throw new Error("Job description is required.");
+  }
+  if (!resume?.blob || !resume?.name) {
+    throw new Error("Resume file is required.");
+  }
+
+  const url = `${getApiBase(apiUrl)}/threads`;
+  const formData = new FormData();
+  formData.append("jobDescription", jobDescription.trim());
+  formData.append("resume", resume.blob, resume.name);
+  if (title?.trim()) formData.append("title", title.trim());
+
   const data = await request(url, {
     method: "POST",
-    body: JSON.stringify(title ? { title } : {})
+    body: formData
   });
   const threads = normalizeThreads(data.threads ? data : { threads: [data.thread ?? data] });
   if (threads[0]) return threads[0];

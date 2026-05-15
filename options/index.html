@@ -60,9 +60,11 @@
       <pre><code>GET  /threads
 { "threads": [{ "id": "...", "title": "Acme interview", "updatedAt": 1710000000 }] }
 
-POST /threads
-{ "title": "New interview" }
-{ "thread": { "id": "...", "title": "..." } }
+POST /threads  (multipart/form-data)
+  resume: file (PDF or DOCX, required)
+  jobDescription: text (required)
+  title: string (optional)
+→ { "thread": { "id": "...", "title": "..." } }
 
 GET  /threads/:id/history
 { "messages": [{ "id": "...", "caption": "...", "response": "...", "createdAt": 1710000000 }] }

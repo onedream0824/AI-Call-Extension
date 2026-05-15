@@ -20,7 +20,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     [MESSAGE.RUN_PIPELINE]: () => runPipeline(),
     [MESSAGE.FETCH_THREADS]: () => loadThreads(),
     [MESSAGE.SELECT_THREAD]: () => selectThread(message.threadId),
-    [MESSAGE.CREATE_THREAD]: () => createAndSelectThread(message.title)
+    [MESSAGE.CREATE_THREAD]: () => createAndSelectThread(message)
   };
 
   const handler = handlers[message.type];
@@ -64,15 +64,9 @@ async function runPipeline() {
       throw new Error("Backend URL is not configured. Open extension settings and add your server URL.");
     }
 
-    let threadId = await getActiveThreadId();
+    const threadId = await getActiveThreadId();
     if (!threadId) {
-      const thread = await createThread(settings.apiUrl, defaultThreadTitle());
-      threadId = thread.id;
-      await setRuntimeState({
-        [STORAGE_KEYS.activeThreadId]: threadId,
-        [STORAGE_KEYS.threads]: [thread]
-      });
-      broadcast(MESSAGE.THREADS_UPDATE);
+      throw new Error("No interview selected. Click + to create one with your resume and job description.");
     }
 
     const responseText = await sendCaption(settings.apiUrl, caption.trim(), threadId);
@@ -131,13 +125,28 @@ async function selectThread(threadId) {
   return { threadId };
 }
 
-async function createAndSelectThread(title) {
+async function createAndSelectThread(payload) {
   const settings = await getSettings();
   if (!settings.apiUrl?.trim()) {
     throw new Error("Backend URL is not configured.");
   }
 
-  const thread = await createThread(settings.apiUrl, title || defaultThreadTitle());
+  if (!payload?.jobDescription?.trim()) {
+    throw new Error("Job description is required.");
+  }
+  if (!payload?.resume?.buffer) {
+    throw new Error("Resume file is required.");
+  }
+
+  const blob = new Blob([payload.resume.buffer], {
+    type: payload.resume.type || "application/octet-stream"
+  });
+
+  const thread = await createThread(settings.apiUrl, {
+    title: payload.title?.trim() || defaultThreadTitle(),
+    jobDescription: payload.jobDescription.trim(),
+    resume: { blob, name: payload.resume.name }
+  });
   const { threads = [] } = await chrome.storage.local.get(STORAGE_KEYS.threads);
   const nextThreads = [thread, ...threads.filter((t) => t.id !== thread.id)];
 

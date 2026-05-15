@@ -42,6 +42,43 @@
     <span>to capture &amp; send</span>
   </footer>
 
+  <dialog class="modal" id="new-thread-modal" aria-labelledby="modal-title">
+    <form id="new-thread-form" class="modal-form">
+      <header class="modal-header">
+        <h2 id="modal-title">New interview</h2>
+        <button type="button" class="modal-close" id="btn-modal-close" aria-label="Close">&times;</button>
+      </header>
+
+      <div class="modal-body">
+        <label class="field">
+          <span>Interview title <em>(optional)</em></span>
+          <input type="text" id="thread-title" placeholder="e.g. Acme Corp — Senior Developer" maxlength="120" />
+        </label>
+
+        <label class="field">
+          <span>Resume <em>(PDF or DOCX, required)</em></span>
+          <div class="file-drop" id="resume-drop">
+            <input type="file" id="resume-file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required />
+            <p class="file-drop-label" id="resume-label">Choose file or drag here</p>
+            <p class="file-drop-name" id="resume-name" hidden></p>
+          </div>
+          <p class="field-error" id="resume-error" hidden></p>
+        </label>
+
+        <label class="field">
+          <span>Job description <em>(required)</em></span>
+          <textarea id="job-description" rows="6" placeholder="Paste the job posting, requirements, and key details…" required></textarea>
+          <p class="field-error" id="job-error" hidden></p>
+        </label>
+      </div>
+
+      <footer class="modal-footer">
+        <button type="button" class="btn btn-ghost" id="btn-modal-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="btn-modal-submit">Create interview</button>
+      </footer>
+    </form>
+  </dialog>
+
   <script type="module" src="panel.js"></script>
 </body>
 </html>

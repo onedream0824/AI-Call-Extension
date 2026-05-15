@@ -1,4 +1,5 @@
 import { MESSAGE, STATUS, STORAGE_KEYS } from "../shared/constants.js";
+import { validateResumeFile } from "../shared/api.js";
 
 const statusBar = document.getElementById("status-bar");
 const statusLabel = document.getElementById("status-label");
@@ -6,6 +7,18 @@ const threadList = document.getElementById("thread-list");
 const conversation = document.getElementById("conversation");
 const conversationEmpty = document.getElementById("conversation-empty");
 const hotkeyHint = document.getElementById("hotkey-hint");
+
+const newThreadModal = document.getElementById("new-thread-modal");
+const newThreadForm = document.getElementById("new-thread-form");
+const threadTitleInput = document.getElementById("thread-title");
+const resumeFileInput = document.getElementById("resume-file");
+const resumeDrop = document.getElementById("resume-drop");
+const resumeLabel = document.getElementById("resume-label");
+const resumeName = document.getElementById("resume-name");
+const resumeError = document.getElementById("resume-error");
+const jobDescriptionInput = document.getElementById("job-description");
+const jobError = document.getElementById("job-error");
+const modalSubmitBtn = document.getElementById("btn-modal-submit");
 
 const STATUS_LABELS = {
   [STATUS.idle]: "Ready",
@@ -24,11 +37,78 @@ document.getElementById("btn-run").addEventListener("click", () => {
   chrome.runtime.sendMessage({ type: MESSAGE.RUN_PIPELINE });
 });
 
-document.getElementById("btn-new-thread").addEventListener("click", () => {
-  chrome.runtime.sendMessage({ type: MESSAGE.CREATE_THREAD }, (res) => {
-    if (!res?.ok) showError(res?.error || "Could not create thread.");
-    else render();
-  });
+document.getElementById("btn-new-thread").addEventListener("click", openNewThreadModal);
+document.getElementById("btn-modal-close").addEventListener("click", closeNewThreadModal);
+document.getElementById("btn-modal-cancel").addEventListener("click", closeNewThreadModal);
+
+newThreadModal.addEventListener("cancel", (e) => {
+  e.preventDefault();
+  closeNewThreadModal();
+});
+
+newThreadModal.addEventListener("click", (e) => {
+  if (e.target === newThreadModal) closeNewThreadModal();
+});
+
+resumeFileInput.addEventListener("change", () => updateResumeDisplay(resumeFileInput.files[0]));
+
+resumeDrop.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  resumeDrop.classList.add("is-dragover");
+});
+
+resumeDrop.addEventListener("dragleave", () => {
+  resumeDrop.classList.remove("is-dragover");
+});
+
+resumeDrop.addEventListener("drop", (e) => {
+  e.preventDefault();
+  resumeDrop.classList.remove("is-dragover");
+  const file = e.dataTransfer?.files?.[0];
+  if (!file) return;
+  setResumeFile(file);
+});
+
+newThreadForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (!validateNewThreadForm()) return;
+
+  const file = resumeFileInput.files[0];
+  const jobDescription = jobDescriptionInput.value.trim();
+  const title = threadTitleInput.value.trim();
+
+  modalSubmitBtn.disabled = true;
+  modalSubmitBtn.textContent = "Creating…";
+
+  try {
+    const buffer = await file.arrayBuffer();
+    chrome.runtime.sendMessage(
+      {
+        type: MESSAGE.CREATE_THREAD,
+        title: title || undefined,
+        jobDescription,
+        resume: {
+          name: file.name,
+          type: file.type,
+          buffer
+        }
+      },
+      (res) => {
+        modalSubmitBtn.disabled = false;
+        modalSubmitBtn.textContent = "Create interview";
+        if (!res?.ok) {
+          showError(res?.error || "Could not create interview.");
+          return;
+        }
+        closeNewThreadModal();
+        render();
+      }
+    );
+  } catch {
+    modalSubmitBtn.disabled = false;
+    modalSubmitBtn.textContent = "Create interview";
+    showError("Could not read resume file.");
+  }
 });
 
 chrome.runtime.onMessage.addListener((message) => {
@@ -40,6 +120,79 @@ chrome.runtime.onMessage.addListener((message) => {
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "local" || area === "sync") render();
 });
+
+function openNewThreadModal() {
+  newThreadForm.reset();
+  resumeName.hidden = true;
+  resumeLabel.hidden = false;
+  hideFieldError(resumeError);
+  hideFieldError(jobError);
+  resumeDrop.classList.remove("has-file", "is-invalid");
+  newThreadModal.showModal();
+  threadTitleInput.focus();
+}
+
+function closeNewThreadModal() {
+  newThreadModal.close();
+}
+
+function setResumeFile(file) {
+  const dt = new DataTransfer();
+  dt.items.add(file);
+  resumeFileInput.files = dt.files;
+  updateResumeDisplay(file);
+}
+
+function updateResumeDisplay(file) {
+  hideFieldError(resumeError);
+  resumeDrop.classList.remove("is-invalid");
+
+  if (!file) {
+    resumeName.hidden = true;
+    resumeLabel.hidden = false;
+    resumeDrop.classList.remove("has-file");
+    return;
+  }
+
+  resumeDrop.classList.add("has-file");
+  resumeLabel.hidden = true;
+  resumeName.hidden = false;
+  resumeName.textContent = file.name;
+}
+
+function validateNewThreadForm() {
+  let valid = true;
+
+  const file = resumeFileInput.files[0];
+  const resumeErr = validateResumeFile(file);
+  if (resumeErr) {
+    showFieldError(resumeError, resumeErr);
+    resumeDrop.classList.add("is-invalid");
+    valid = false;
+  } else {
+    hideFieldError(resumeError);
+    resumeDrop.classList.remove("is-invalid");
+  }
+
+  if (!jobDescriptionInput.value.trim()) {
+    showFieldError(jobError, "Job description is required.");
+    valid = false;
+  } else {
+    hideFieldError(jobError);
+  }
+
+  return valid;
+}
+
+function showFieldError(el, message) {
+  el.textContent = message;
+  el.hidden = false;
+}
+
+function hideFieldError(el) {
+  el.hidden = true;
+  el.textContent = "";
+}
 
 async function init() {
   const { apiUrl } = await chrome.storage.sync.get(STORAGE_KEYS.apiUrl);
@@ -82,7 +235,7 @@ async function render() {
 
 function renderThreadBar(threads, activeId) {
   if (threads.length === 0) {
-    threadList.innerHTML = `<span class="thread-placeholder">No interviews yet</span>`;
+    threadList.innerHTML = `<span class="thread-placeholder">Click + to start an interview</span>`;
     return;
   }
 
@@ -120,7 +273,7 @@ function renderConversation(history, status, state) {
 
   if (history.length === 0 && !hasPending) {
     conversationEmpty.hidden = false;
-    conversation.querySelectorAll(".message-group, .message-pending").forEach((el) => el.remove());
+    conversation.querySelectorAll(".conversation-messages, .message-pending").forEach((el) => el.remove());
     return;
   }
 
