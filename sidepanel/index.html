@@ -21,30 +21,19 @@
     </div>
   </header>
 
+  <section class="thread-bar" aria-label="Interview threads">
+    <button type="button" id="btn-new-thread" class="thread-new" title="New interview">+</button>
+    <div class="thread-scroll" id="thread-list" role="tablist"></div>
+  </section>
+
   <section class="status-bar" id="status-bar" data-status="idle">
     <span class="status-dot"></span>
     <span class="status-label" id="status-label">Ready</span>
   </section>
 
   <main class="main">
-    <article class="card card-caption">
-      <h2 class="card-title">Captured caption</h2>
-      <p class="card-body empty" id="caption-text">Press your hotkey or Capture to fetch the latest live caption.</p>
-    </article>
-
-    <article class="card card-response">
-      <h2 class="card-title">AI response</h2>
-      <div class="response-wrap" id="response-wrap">
-        <p class="card-body empty" id="response-text">Your backend response will appear here.</p>
-      </div>
-    </article>
-
-    <section class="history" id="history-section" hidden>
-      <div class="history-header">
-        <h2 class="card-title">Session history</h2>
-        <button type="button" id="btn-clear" class="btn btn-ghost btn-sm">Clear</button>
-      </div>
-      <ul class="history-list" id="history-list"></ul>
+    <section class="conversation" id="conversation" aria-label="Thread history">
+      <p class="conversation-empty" id="conversation-empty">Select an interview thread or create a new one.</p>
     </section>
   </main>
 

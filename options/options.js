@@ -6,7 +6,7 @@ const currentHotkey = document.getElementById("current-hotkey");
 
 async function load() {
   const stored = await chrome.storage.sync.get(Object.values(STORAGE_KEYS).filter(
-    (k) => !["lastCaption", "lastResponse", "lastError", "status", "sessionHistory"].includes(k)
+    (k) => !["lastCaption", "lastResponse", "lastError", "status", "threads", "threadHistory", "activeThreadId"].includes(k)
   ));
 
   document.getElementById("apiUrl").value = stored[STORAGE_KEYS.apiUrl] ?? DEFAULTS.apiUrl;

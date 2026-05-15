@@ -1,5 +1,11 @@
-import { API, MESSAGE, STATUS, STORAGE_KEYS } from "../shared/constants.js";
-import { appendHistory, getSettings, setRuntimeState } from "../shared/storage.js";
+import {
+  createThread,
+  fetchThreadHistory,
+  fetchThreads,
+  sendCaption
+} from "../shared/api.js";
+import { MESSAGE, STATUS, STORAGE_KEYS } from "../shared/constants.js";
+import { getActiveThreadId, getSettings, setRuntimeState } from "../shared/storage.js";
 
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
 
@@ -10,15 +16,20 @@ chrome.commands.onCommand.addListener(async (command) => {
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message.type === MESSAGE.RUN_PIPELINE) {
-    runPipeline().then(() => sendResponse({ ok: true })).catch((err) => sendResponse({ ok: false, error: err.message }));
-    return true;
-  }
-  if (message.type === MESSAGE.CLEAR_HISTORY) {
-    chrome.storage.local.set({ [STORAGE_KEYS.sessionHistory]: [] }).then(() => sendResponse({ ok: true }));
-    return true;
-  }
-  return false;
+  const handlers = {
+    [MESSAGE.RUN_PIPELINE]: () => runPipeline(),
+    [MESSAGE.FETCH_THREADS]: () => loadThreads(),
+    [MESSAGE.SELECT_THREAD]: () => selectThread(message.threadId),
+    [MESSAGE.CREATE_THREAD]: () => createAndSelectThread(message.title)
+  };
+
+  const handler = handlers[message.type];
+  if (!handler) return false;
+
+  handler()
+    .then((result) => sendResponse({ ok: true, ...result }))
+    .catch((err) => sendResponse({ ok: false, error: err.message }));
+  return true;
 });
 
 async function runPipeline() {
@@ -33,7 +44,7 @@ async function runPipeline() {
     [STORAGE_KEYS.status]: STATUS.capturing,
     [STORAGE_KEYS.lastError]: ""
   });
-  broadcastUpdate();
+  broadcast(MESSAGE.PIPELINE_UPDATE);
 
   const caption = await captureCaptionFromTab(tab.id);
   if (!caption?.trim()) {
@@ -45,7 +56,7 @@ async function runPipeline() {
     [STORAGE_KEYS.lastCaption]: caption.trim(),
     [STORAGE_KEYS.status]: STATUS.sending
   });
-  broadcastUpdate();
+  broadcast(MESSAGE.PIPELINE_UPDATE);
 
   try {
     const settings = await getSettings();
@@ -53,24 +64,107 @@ async function runPipeline() {
       throw new Error("Backend URL is not configured. Open extension settings and add your server URL.");
     }
 
-    const responseText = await callBackend(settings, caption.trim());
-    const entry = {
-      id: crypto.randomUUID(),
-      caption: caption.trim(),
-      response: responseText,
-      at: Date.now()
-    };
+    let threadId = await getActiveThreadId();
+    if (!threadId) {
+      const thread = await createThread(settings.apiUrl, defaultThreadTitle());
+      threadId = thread.id;
+      await setRuntimeState({
+        [STORAGE_KEYS.activeThreadId]: threadId,
+        [STORAGE_KEYS.threads]: [thread]
+      });
+      broadcast(MESSAGE.THREADS_UPDATE);
+    }
+
+    const responseText = await sendCaption(settings.apiUrl, caption.trim(), threadId);
 
     await setRuntimeState({
       [STORAGE_KEYS.lastResponse]: responseText,
       [STORAGE_KEYS.status]: STATUS.success,
       [STORAGE_KEYS.lastError]: ""
     });
-    await appendHistory(entry);
-    broadcastUpdate();
+    broadcast(MESSAGE.PIPELINE_UPDATE);
+
+    await refreshThreadHistory(threadId);
+    await loadThreads();
   } catch (err) {
     await fail(err.message || "Request failed.");
   }
+}
+
+async function loadThreads() {
+  const settings = await getSettings();
+  if (!settings.apiUrl?.trim()) {
+    throw new Error("Backend URL is not configured.");
+  }
+
+  await setRuntimeState({ [STORAGE_KEYS.status]: STATUS.loading });
+  broadcast(MESSAGE.THREADS_UPDATE);
+
+  const threads = await fetchThreads(settings.apiUrl);
+  const updates = { [STORAGE_KEYS.threads]: threads, [STORAGE_KEYS.status]: STATUS.idle };
+
+  let activeId = await getActiveThreadId();
+  if (!activeId && threads.length > 0) {
+    activeId = threads[0].id;
+    updates[STORAGE_KEYS.activeThreadId] = activeId;
+  }
+
+  await setRuntimeState(updates);
+  broadcast(MESSAGE.THREADS_UPDATE);
+
+  if (activeId) {
+    await refreshThreadHistory(activeId);
+  } else {
+    await setRuntimeState({ [STORAGE_KEYS.threadHistory]: [] });
+    broadcast(MESSAGE.THREADS_UPDATE);
+  }
+
+  return { threads };
+}
+
+async function selectThread(threadId) {
+  if (!threadId) throw new Error("Thread id is required.");
+
+  await setRuntimeState({ [STORAGE_KEYS.activeThreadId]: threadId });
+  broadcast(MESSAGE.THREADS_UPDATE);
+  await refreshThreadHistory(threadId);
+  return { threadId };
+}
+
+async function createAndSelectThread(title) {
+  const settings = await getSettings();
+  if (!settings.apiUrl?.trim()) {
+    throw new Error("Backend URL is not configured.");
+  }
+
+  const thread = await createThread(settings.apiUrl, title || defaultThreadTitle());
+  const { threads = [] } = await chrome.storage.local.get(STORAGE_KEYS.threads);
+  const nextThreads = [thread, ...threads.filter((t) => t.id !== thread.id)];
+
+  await setRuntimeState({
+    [STORAGE_KEYS.activeThreadId]: thread.id,
+    [STORAGE_KEYS.threads]: nextThreads,
+    [STORAGE_KEYS.threadHistory]: []
+  });
+  broadcast(MESSAGE.THREADS_UPDATE);
+  await refreshThreadHistory(thread.id);
+  return { thread };
+}
+
+async function refreshThreadHistory(threadId) {
+  const settings = await getSettings();
+  const history = await fetchThreadHistory(settings.apiUrl, threadId);
+  await setRuntimeState({ [STORAGE_KEYS.threadHistory]: history });
+  broadcast(MESSAGE.THREADS_UPDATE);
+}
+
+function defaultThreadTitle() {
+  return `Interview ${new Date().toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  })}`;
 }
 
 async function openSidePanel(windowId) {
@@ -122,51 +216,14 @@ async function sendCaptureMessage(tabId, frameId = 0) {
   }
 }
 
-async function callBackend(settings, text) {
-  const body = { [API.requestField]: text };
-  const headers = { "Content-Type": "application/json" };
-
-  const res = await fetch(settings.apiUrl.trim(), {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body)
-  });
-
-  if (!res.ok) {
-    const errText = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}${errText ? `: ${errText.slice(0, 200)}` : ""}`);
-  }
-
-  const contentType = res.headers.get("content-type") || "";
-  if (contentType.includes("application/json")) {
-    const data = await res.json();
-    return extractResponse(data, API.responseField);
-  }
-
-  const plain = await res.text();
-  return plain.trim() || "(Empty response)";
-}
-
-function extractResponse(data, fieldPath) {
-  if (typeof data === "string") return data;
-  if (!fieldPath) return JSON.stringify(data, null, 2);
-
-  const value = fieldPath.split(".").reduce((obj, key) => (obj != null ? obj[key] : undefined), data);
-  if (value == null) {
-    throw new Error(`Response field "${fieldPath}" not found in API JSON.`);
-  }
-  if (typeof value === "object") return JSON.stringify(value, null, 2);
-  return String(value);
-}
-
 async function fail(message) {
   await setRuntimeState({
     [STORAGE_KEYS.status]: STATUS.error,
     [STORAGE_KEYS.lastError]: message
   });
-  broadcastUpdate();
+  broadcast(MESSAGE.PIPELINE_UPDATE);
 }
 
-function broadcastUpdate() {
-  chrome.runtime.sendMessage({ type: MESSAGE.PIPELINE_UPDATE }).catch(() => {});
+function broadcast(type) {
+  chrome.runtime.sendMessage({ type }).catch(() => {});
 }

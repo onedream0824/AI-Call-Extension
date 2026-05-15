@@ -20,7 +20,7 @@
 
         <label class="field">
           <span>Backend URL</span>
-          <input type="url" id="apiUrl" name="apiUrl" placeholder="https://api.example.com/v1/assist" required />
+          <input type="url" id="apiUrl" name="apiUrl" placeholder="https://api.example.com/v1" required />
         </label>
       </section>
 
@@ -57,13 +57,19 @@
 
     <section class="section api-example">
       <h2>API contract example</h2>
-      <pre><code>POST /your-endpoint
-Content-Type: application/json
+      <pre><code>GET  /threads
+{ "threads": [{ "id": "...", "title": "Acme interview", "updatedAt": 1710000000 }] }
 
-{ "text": "caption from live subtitles" }
+POST /threads
+{ "title": "New interview" }
+{ "thread": { "id": "...", "title": "..." } }
 
-// Response
-{ "response": "Suggested answer or translation for the freelancer" }</code></pre>
+GET  /threads/:id/history
+{ "messages": [{ "id": "...", "caption": "...", "response": "...", "createdAt": 1710000000 }] }
+
+POST /assist
+{ "text": "caption from live subtitles", "threadId": "..." }
+{ "response": "Suggested answer for the freelancer" }</code></pre>
     </section>
   </div>
 
