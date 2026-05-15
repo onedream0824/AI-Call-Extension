@@ -7,16 +7,38 @@
   <link rel="stylesheet" href="options.css" />
 </head>
 <body>
-  <div class="page">
+  <section id="auth-view" class="auth-view">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <h1>AI Call Assistant</h1>
+        <p>Sign in to open settings</p>
+      </div>
+      <form id="sign-in-form" class="auth-form">
+        <label class="field">
+          <span>Username</span>
+          <input type="text" id="auth-username" autocomplete="username" required />
+        </label>
+        <label class="field">
+          <span>Password</span>
+          <input type="password" id="auth-password" autocomplete="current-password" required />
+        </label>
+        <p class="field-error" id="auth-error" hidden></p>
+        <button type="submit" class="btn btn-primary btn-block">Sign in</button>
+      </form>
+    </div>
+  </section>
+
+  <div class="page" id="settings-page" hidden>
     <header class="page-header">
       <h1>AI Call Assistant</h1>
       <p>Enter your backend URL and keyboard shortcut for interview support.</p>
+      <button type="button" id="btn-sign-out" class="btn btn-secondary btn-sign-out">Sign out</button>
     </header>
 
     <form id="settings-form" class="form">
       <section class="section">
         <h2>Backend</h2>
-        <p class="hint">Captions are sent to this URL. Auth and other settings are handled on your server.</p>
+        <p class="hint">Captions are sent to this URL. Server-side settings are handled on your backend.</p>
 
         <label class="field">
           <span>Backend URL</span>
@@ -71,8 +93,7 @@ GET  /threads/:id/history
 
 POST /assist
 { "text": "caption from live subtitles", "threadId": "..." }
-{ "response": "...", "message": { "id": "...", "caption": "...", "response": "...", "createdAt": 1710000000 } }
-// message is optional; extension appends to cached history</code></pre>
+{ "response": "...", "message": { "id": "...", "caption": "...", "response": "...", "createdAt": 1710000000 } }</code></pre>
     </section>
   </div>
 

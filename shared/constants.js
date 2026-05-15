@@ -1,4 +1,6 @@
 export const STORAGE_KEYS = {
+  isAuthenticated: "isAuthenticated",
+  authUsername: "authUsername",
   apiUrl: "apiUrl",
   customSelector: "customSelector",
   activeThreadId: "activeThreadId",
@@ -39,5 +41,9 @@ export const MESSAGE = {
   THREADS_UPDATE: "THREADS_UPDATE",
   FETCH_THREADS: "FETCH_THREADS",
   SELECT_THREAD: "SELECT_THREAD",
-  CREATE_THREAD: "CREATE_THREAD"
+  CREATE_THREAD: "CREATE_THREAD",
+  SIGN_IN: "SIGN_IN",
+  SIGN_OUT: "SIGN_OUT",
+  AUTH_UPDATE: "AUTH_UPDATE",
+  GET_AUTH_STATE: "GET_AUTH_STATE"
 };

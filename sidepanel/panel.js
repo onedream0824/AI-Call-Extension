@@ -1,5 +1,15 @@
-import { MESSAGE, STATUS, STORAGE_KEYS } from "../shared/constants.js";
+import { signIn, signOut, isAuthenticated, AUTH_ERRORS } from "../shared/auth.js";
+import { DEFAULTS, MESSAGE, STATUS, STORAGE_KEYS } from "../shared/constants.js";
 import { validateResumeFile } from "../shared/api.js";
+import { sendRuntimeMessage } from "../shared/runtime-message.js";
+
+const authView = document.getElementById("auth-view");
+const appRoot = document.getElementById("app-root");
+const signInForm = document.getElementById("sign-in-form");
+const authUsernameInput = document.getElementById("auth-username");
+const authPasswordInput = document.getElementById("auth-password");
+const authError = document.getElementById("auth-error");
+const btnSignIn = document.getElementById("btn-sign-in");
 
 const statusBar = document.getElementById("status-bar");
 const statusLabel = document.getElementById("status-label");
@@ -7,8 +17,15 @@ const threadList = document.getElementById("thread-list");
 const conversation = document.getElementById("conversation");
 const conversationEmpty = document.getElementById("conversation-empty");
 const hotkeyHint = document.getElementById("hotkey-hint");
+const mainView = document.getElementById("main-view");
+const settingsView = document.getElementById("settings-view");
+const btnSettings = document.getElementById("btn-settings");
+const settingsForm = document.getElementById("settings-form");
+const saveStatus = document.getElementById("save-status");
+const settingsHotkey = document.getElementById("settings-hotkey");
 
 let lastRenderedCount = 0;
+let showingSettings = false;
 let lastRenderedThreadId = null;
 
 const newThreadModal = document.getElementById("new-thread-modal");
@@ -32,8 +49,35 @@ const STATUS_LABELS = {
   [STATUS.error]: "Error"
 };
 
-document.getElementById("btn-settings").addEventListener("click", () => {
-  chrome.runtime.openOptionsPage();
+btnSettings.addEventListener("click", () => {
+  showingSettings ? showMainView() : showSettingsView();
+});
+
+document.getElementById("btn-settings-back").addEventListener("click", showMainView);
+
+settingsForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  await saveSettings();
+});
+
+document.getElementById("btn-shortcuts").addEventListener("click", () => {
+  const isEdge = navigator.userAgent.includes("Edg/");
+  chrome.tabs.create({
+    url: isEdge ? "edge://extensions/shortcuts" : "chrome://extensions/shortcuts"
+  });
+});
+
+document.getElementById("btn-sign-out").addEventListener("click", async () => {
+  try {
+    await signOut();
+    await sendRuntimeMessage({ type: MESSAGE.SIGN_OUT }).catch(() => {});
+    updateAuthUI(false);
+    authUsernameInput.value = "";
+    authPasswordInput.value = "";
+    hideFieldError(authError);
+  } catch (err) {
+    showFieldError(authError, err.message || AUTH_ERRORS.unknown);
+  }
 });
 
 document.getElementById("btn-run").addEventListener("click", () => {
@@ -41,6 +85,27 @@ document.getElementById("btn-run").addEventListener("click", () => {
 });
 
 document.getElementById("btn-new-thread").addEventListener("click", openNewThreadModal);
+
+signInForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  hideFieldError(authError);
+  btnSignIn.disabled = true;
+  btnSignIn.textContent = "Signing in…";
+
+  try {
+    await signIn(authUsernameInput.value, authPasswordInput.value);
+    authPasswordInput.value = "";
+    updateAuthUI(true);
+    await bootstrapApp();
+  } catch (err) {
+    showFieldError(authError, err.message || AUTH_ERRORS.unknown);
+    authView.hidden = false;
+    appRoot.hidden = true;
+  } finally {
+    btnSignIn.disabled = false;
+    btnSignIn.textContent = "Sign in";
+  }
+});
 document.getElementById("btn-modal-close").addEventListener("click", closeNewThreadModal);
 document.getElementById("btn-modal-cancel").addEventListener("click", closeNewThreadModal);
 
@@ -115,14 +180,104 @@ newThreadForm.addEventListener("submit", async (e) => {
 });
 
 chrome.runtime.onMessage.addListener((message) => {
+  if (message.type === MESSAGE.AUTH_UPDATE) {
+    isAuthenticated().then((authed) => {
+      updateAuthUI(authed);
+      if (authed) bootstrapApp();
+    });
+    return;
+  }
   if (message.type === MESSAGE.PIPELINE_UPDATE || message.type === MESSAGE.THREADS_UPDATE) {
+    if (appRoot.hidden || showingSettings) return;
     render();
   }
 });
 
 chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes[STORAGE_KEYS.isAuthenticated]) {
+    const authed = changes[STORAGE_KEYS.isAuthenticated].newValue === true;
+    updateAuthUI(authed);
+    if (authed) bootstrapApp();
+    return;
+  }
+  if (appRoot.hidden || showingSettings) return;
   if (area === "local" || area === "sync") render();
 });
+
+function updateAuthUI(authed) {
+  authView.hidden = Boolean(authed);
+  appRoot.hidden = !authed;
+  document.body.classList.toggle("is-authed", Boolean(authed));
+  if (!authed) showingSettings = false;
+}
+
+function showSettingsView() {
+  showingSettings = true;
+  mainView.hidden = true;
+  settingsView.hidden = false;
+  btnSettings.setAttribute("aria-pressed", "true");
+  btnSettings.classList.add("is-active");
+  loadSettingsForm();
+}
+
+async function showMainView() {
+  showingSettings = false;
+  settingsView.hidden = true;
+  mainView.hidden = false;
+  btnSettings.setAttribute("aria-pressed", "false");
+  btnSettings.classList.remove("is-active");
+  saveStatus.textContent = "";
+
+  const { apiUrl } = await chrome.storage.sync.get(STORAGE_KEYS.apiUrl);
+  if (apiUrl?.trim()) {
+    try {
+      await sendRuntimeMessage({ type: MESSAGE.FETCH_THREADS });
+    } catch (err) {
+      showError(err.message || "Could not load threads.");
+    }
+  } else {
+    conversationEmpty.textContent = "Open Settings and add your backend URL.";
+  }
+  render();
+}
+
+async function loadSettingsForm() {
+  const stored = await chrome.storage.sync.get([
+    STORAGE_KEYS.apiUrl,
+    STORAGE_KEYS.customSelector
+  ]);
+
+  document.getElementById("apiUrl").value = stored[STORAGE_KEYS.apiUrl] ?? DEFAULTS.apiUrl;
+  document.getElementById("customSelector").value =
+    stored[STORAGE_KEYS.customSelector] ?? DEFAULTS.customSelector;
+
+  await updateSettingsHotkey();
+}
+
+async function updateSettingsHotkey() {
+  if (!chrome.commands?.getAll) return;
+  const commands = await chrome.commands.getAll();
+  const cmd = commands.find((c) => c.name === "capture-and-send");
+  if (cmd?.shortcut) {
+    settingsHotkey.textContent = cmd.shortcut;
+    hotkeyHint.textContent = cmd.shortcut;
+  }
+}
+
+async function saveSettings() {
+  const data = {
+    [STORAGE_KEYS.apiUrl]: document.getElementById("apiUrl").value.trim(),
+    [STORAGE_KEYS.customSelector]: document.getElementById("customSelector").value.trim()
+  };
+
+  await chrome.storage.sync.set(data);
+  saveStatus.textContent = "Saved.";
+  setTimeout(() => { saveStatus.textContent = ""; }, 2000);
+}
+
+async function checkAuth() {
+  return isAuthenticated();
+}
 
 function openNewThreadModal() {
   newThreadForm.reset();
@@ -190,6 +345,7 @@ function validateNewThreadForm() {
 function showFieldError(el, message) {
   el.textContent = message;
   el.hidden = false;
+  el.setAttribute("role", "alert");
 }
 
 function hideFieldError(el) {
@@ -197,17 +353,25 @@ function hideFieldError(el) {
   el.textContent = "";
 }
 
-async function init() {
+async function bootstrapApp() {
+  showMainView();
   const { apiUrl } = await chrome.storage.sync.get(STORAGE_KEYS.apiUrl);
   if (apiUrl?.trim()) {
-    chrome.runtime.sendMessage({ type: MESSAGE.FETCH_THREADS }, (res) => {
-      if (!res?.ok) showError(res?.error || "Could not load threads.");
-      render();
-    });
+    try {
+      await sendRuntimeMessage({ type: MESSAGE.FETCH_THREADS });
+    } catch (err) {
+      showError(err.message || "Could not load threads.");
+    }
   } else {
-    conversationEmpty.textContent = "Configure your backend URL in Settings.";
-    render();
+    conversationEmpty.textContent = "Open Settings and add your backend URL.";
   }
+  render();
+}
+
+async function init() {
+  const authed = await checkAuth();
+  updateAuthUI(authed);
+  if (authed) await bootstrapApp();
 }
 
 async function render() {
@@ -368,10 +532,7 @@ function escapeAttr(str) {
 }
 
 async function updateHotkeyHint() {
-  if (!chrome.commands?.getAll) return;
-  const commands = await chrome.commands.getAll();
-  const cmd = commands.find((c) => c.name === "capture-and-send");
-  if (cmd?.shortcut) hotkeyHint.textContent = cmd.shortcut;
+  await updateSettingsHotkey();
 }
 
 init();

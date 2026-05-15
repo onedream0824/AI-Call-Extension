@@ -4,6 +4,7 @@ import {
   fetchThreads,
   sendCaption
 } from "../shared/api.js";
+import { isAuthenticated, requireAuth, signIn, signOut } from "../shared/auth.js";
 import { MESSAGE, STATUS, STORAGE_KEYS } from "../shared/constants.js";
 import { getActiveThreadId, getSettings, setRuntimeState } from "../shared/storage.js";
 import {
@@ -18,16 +19,44 @@ chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => 
 
 chrome.commands.onCommand.addListener(async (command) => {
   if (command === "capture-and-send") {
-    await runPipeline();
+    try {
+      await requireAuth();
+      await runPipeline();
+    } catch (err) {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab?.windowId) await openSidePanel(tab.windowId);
+      await fail(err.message || "Sign in required.");
+      broadcast(MESSAGE.AUTH_UPDATE);
+    }
   }
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   const handlers = {
-    [MESSAGE.RUN_PIPELINE]: () => runPipeline(),
-    [MESSAGE.FETCH_THREADS]: () => loadThreads(),
-    [MESSAGE.SELECT_THREAD]: () => selectThread(message.threadId),
-    [MESSAGE.CREATE_THREAD]: () => createAndSelectThread(message)
+    [MESSAGE.GET_AUTH_STATE]: async () => ({ authed: await isAuthenticated() }),
+    [MESSAGE.SIGN_IN]: async () => {
+      await signIn(message.username, message.password);
+      broadcast(MESSAGE.AUTH_UPDATE);
+      return { authed: true };
+    },
+    [MESSAGE.SIGN_OUT]: async () => {
+      await signOut().catch(() => {});
+      await clearThreadCache();
+      await setRuntimeState({
+        [STORAGE_KEYS.threads]: [],
+        [STORAGE_KEYS.threadHistory]: [],
+        [STORAGE_KEYS.activeThreadId]: null,
+        [STORAGE_KEYS.status]: STATUS.idle,
+        [STORAGE_KEYS.lastError]: ""
+      });
+      broadcast(MESSAGE.AUTH_UPDATE);
+      broadcast(MESSAGE.THREADS_UPDATE);
+      return { authed: false };
+    },
+    [MESSAGE.RUN_PIPELINE]: () => withAuth(() => runPipeline()),
+    [MESSAGE.FETCH_THREADS]: () => withAuth(() => loadThreads()),
+    [MESSAGE.SELECT_THREAD]: () => withAuth(() => selectThread(message.threadId)),
+    [MESSAGE.CREATE_THREAD]: () => withAuth(() => createAndSelectThread(message))
   };
 
   const handler = handlers[message.type];
@@ -38,6 +67,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     .catch((err) => sendResponse({ ok: false, error: err.message }));
   return true;
 });
+
+async function withAuth(fn) {
+  await requireAuth();
+  return fn();
+}
 
 async function runPipeline() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
