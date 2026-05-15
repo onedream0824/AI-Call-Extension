@@ -13,11 +13,7 @@ export async function getSettings() {
 
   return {
     apiUrl: stored[STORAGE_KEYS.apiUrl] ?? DEFAULTS.apiUrl,
-    apiKey: stored[STORAGE_KEYS.apiKey] ?? DEFAULTS.apiKey,
-    apiKeyHeader: stored[STORAGE_KEYS.apiKeyHeader] ?? DEFAULTS.apiKeyHeader,
     customSelector: stored[STORAGE_KEYS.customSelector] ?? DEFAULTS.customSelector,
-    requestField: stored[STORAGE_KEYS.requestField] ?? DEFAULTS.requestField,
-    responseField: stored[STORAGE_KEYS.responseField] ?? DEFAULTS.responseField,
     sessionHistory: stored[STORAGE_KEYS.sessionHistory] ?? DEFAULTS.sessionHistory
   };
 }

@@ -10,39 +10,18 @@
   <div class="page">
     <header class="page-header">
       <h1>AI Call Assistant</h1>
-      <p>Configure your backend API and keyboard shortcut for interview support.</p>
+      <p>Enter your backend URL and keyboard shortcut for interview support.</p>
     </header>
 
     <form id="settings-form" class="form">
       <section class="section">
-        <h2>Server configuration</h2>
-        <p class="hint">Your API receives a POST with the captured caption and returns a JSON (or plain text) response.</p>
+        <h2>Backend</h2>
+        <p class="hint">Captions are sent to this URL. Auth and other settings are handled on your server.</p>
 
         <label class="field">
-          <span>API URL</span>
+          <span>Backend URL</span>
           <input type="url" id="apiUrl" name="apiUrl" placeholder="https://api.example.com/v1/assist" required />
         </label>
-
-        <label class="field">
-          <span>API key (optional)</span>
-          <input type="password" id="apiKey" name="apiKey" placeholder="sk-..." autocomplete="off" />
-        </label>
-
-        <label class="field">
-          <span>API key header name</span>
-          <input type="text" id="apiKeyHeader" name="apiKeyHeader" placeholder="Authorization" />
-        </label>
-
-        <div class="field-row">
-          <label class="field">
-            <span>Request JSON field</span>
-            <input type="text" id="requestField" name="requestField" placeholder="text" />
-          </label>
-          <label class="field">
-            <span>Response JSON field</span>
-            <input type="text" id="responseField" name="responseField" placeholder="response" />
-          </label>
-        </div>
       </section>
 
       <section class="section">

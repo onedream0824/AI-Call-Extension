@@ -1,4 +1,4 @@
-import { MESSAGE, STATUS, STORAGE_KEYS } from "../shared/constants.js";
+import { API, MESSAGE, STATUS, STORAGE_KEYS } from "../shared/constants.js";
 import { appendHistory, getSettings, setRuntimeState } from "../shared/storage.js";
 
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
@@ -50,7 +50,7 @@ async function runPipeline() {
   try {
     const settings = await getSettings();
     if (!settings.apiUrl?.trim()) {
-      throw new Error("API URL is not configured. Open extension settings and add your server URL.");
+      throw new Error("Backend URL is not configured. Open extension settings and add your server URL.");
     }
 
     const responseText = await callBackend(settings, caption.trim());
@@ -123,16 +123,8 @@ async function sendCaptureMessage(tabId, frameId = 0) {
 }
 
 async function callBackend(settings, text) {
-  const body = { [settings.requestField]: text };
+  const body = { [API.requestField]: text };
   const headers = { "Content-Type": "application/json" };
-
-  if (settings.apiKey?.trim()) {
-    const headerName = settings.apiKeyHeader?.trim() || "Authorization";
-    const value = settings.apiKey.trim();
-    headers[headerName] = value.startsWith("Bearer ") || headerName.toLowerCase() !== "authorization"
-      ? value
-      : `Bearer ${value}`;
-  }
 
   const res = await fetch(settings.apiUrl.trim(), {
     method: "POST",
@@ -148,7 +140,7 @@ async function callBackend(settings, text) {
   const contentType = res.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {
     const data = await res.json();
-    return extractResponse(data, settings.responseField);
+    return extractResponse(data, API.responseField);
   }
 
   const plain = await res.text();

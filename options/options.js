@@ -10,10 +10,6 @@ async function load() {
   ));
 
   document.getElementById("apiUrl").value = stored[STORAGE_KEYS.apiUrl] ?? DEFAULTS.apiUrl;
-  document.getElementById("apiKey").value = stored[STORAGE_KEYS.apiKey] ?? DEFAULTS.apiKey;
-  document.getElementById("apiKeyHeader").value = stored[STORAGE_KEYS.apiKeyHeader] ?? DEFAULTS.apiKeyHeader;
-  document.getElementById("requestField").value = stored[STORAGE_KEYS.requestField] ?? DEFAULTS.requestField;
-  document.getElementById("responseField").value = stored[STORAGE_KEYS.responseField] ?? DEFAULTS.responseField;
   document.getElementById("customSelector").value = stored[STORAGE_KEYS.customSelector] ?? DEFAULTS.customSelector;
 
   await updateHotkeyDisplay();
@@ -30,10 +26,6 @@ form.addEventListener("submit", async (e) => {
   e.preventDefault();
   const data = {
     [STORAGE_KEYS.apiUrl]: document.getElementById("apiUrl").value.trim(),
-    [STORAGE_KEYS.apiKey]: document.getElementById("apiKey").value.trim(),
-    [STORAGE_KEYS.apiKeyHeader]: document.getElementById("apiKeyHeader").value.trim() || DEFAULTS.apiKeyHeader,
-    [STORAGE_KEYS.requestField]: document.getElementById("requestField").value.trim() || DEFAULTS.requestField,
-    [STORAGE_KEYS.responseField]: document.getElementById("responseField").value.trim() || DEFAULTS.responseField,
     [STORAGE_KEYS.customSelector]: document.getElementById("customSelector").value.trim()
   };
 

@@ -1,10 +1,6 @@
 export const STORAGE_KEYS = {
   apiUrl: "apiUrl",
-  apiKey: "apiKey",
-  apiKeyHeader: "apiKeyHeader",
   customSelector: "customSelector",
-  requestField: "requestField",
-  responseField: "responseField",
   lastCaption: "lastCaption",
   lastResponse: "lastResponse",
   lastError: "lastError",
@@ -14,12 +10,14 @@ export const STORAGE_KEYS = {
 
 export const DEFAULTS = {
   apiUrl: "",
-  apiKey: "",
-  apiKeyHeader: "Authorization",
   customSelector: "",
-  requestField: "text",
-  responseField: "response",
   sessionHistory: []
+};
+
+/** Fixed API contract — configured on your backend */
+export const API = {
+  requestField: "text",
+  responseField: "response"
 };
 
 export const STATUS = {
