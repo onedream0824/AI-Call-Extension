@@ -21,10 +21,11 @@ export function buildMessages({ systemPrompt, resumeText, jobDescription, transc
   const parts = []
   if (resume) parts.push(`## Candidate Resume\n${resume}`)
   if (jd)     parts.push(`## Job Description\n${jd}`)
-  parts.push(`## Interview Context (recent question / statement)\n${transcription.trim()}`)
+  parts.push(`## What the interviewer just said\n${transcription.trim()}`)
   parts.push(
-    '## Task\nGenerate a concise, strategic response the candidate should give. ' +
-    'Focus on aligning their experience with the job requirements. Keep under 3 sentences.'
+    '## Task\nReply with only the exact spoken answer I should say out loud. ' +
+    'Include one specific example from my background (resume/JD when relevant). ' +
+    'No thinking, no options, no advice — just the words I read.'
   )
 
   return [
