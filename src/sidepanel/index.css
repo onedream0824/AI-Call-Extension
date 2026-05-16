@@ -45,6 +45,20 @@ html, body, #root { height: 100%; margin: 0; padding: 0; }
 .typing-dot:nth-child(2) { animation-delay: -0.16s; }
 .typing-dot:nth-child(3) { animation-delay: 0s; }
 
+/* ── Streaming cursor ──────────────────────────────────── */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+.streaming-cursor::after {
+  content: '▋';
+  display: inline-block;
+  animation: blink 1s step-end infinite;
+  margin-left: 1px;
+  font-size: 0.85em;
+  vertical-align: middle;
+}
+
 /* ── Loading spinner ───────────────────────────────────── */
 @keyframes spin {
   to { transform: rotate(360deg); }

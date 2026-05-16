@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react'
 import { Mic, SendHorizonal } from 'lucide-react'
 
-export default function InputBar({ value, onChange, onCapture, onSend, sending, disabled }) {
+export default function InputBar({ value, onChange, onCapture, onSend, sending, disabled = false }) {
   const textareaRef = useRef(null)
 
   /* Auto-resize textarea height as content grows */
@@ -35,11 +35,7 @@ export default function InputBar({ value, onChange, onCapture, onSend, sending, 
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={
-            disabled
-              ? 'Select a thread to begin…'
-              : 'Capture or type a message… (Enter to send)'
-          }
+          placeholder="Capture or type a message… (Enter to send)"
           disabled={disabled || sending}
           rows={1}
           className="flex-1 resize-none bg-transparent text-sm text-gray-800 outline-none placeholder-gray-400 dark:text-gray-200 disabled:opacity-40"
