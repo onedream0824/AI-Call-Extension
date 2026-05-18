@@ -3,8 +3,17 @@ import {
   X, Save, LogOut, CheckCircle2, Eye, EyeOff, Upload,
   FileText, AlertCircle, ChevronDown, Info, Loader2,
 } from 'lucide-react'
-import { localStore } from '../../utils/storage.js'
-import { LOCAL_KEYS, OPENAI_MODELS, DEFAULT_MODEL, DEFAULT_SYSTEM_PROMPT } from '../../utils/constants.js'
+import { localStore, storage } from '../../utils/storage.js'
+import {
+  LOCAL_KEYS,
+  STORAGE_KEYS,
+  OPENAI_MODELS,
+  DEFAULT_MODEL,
+  DEFAULT_SYSTEM_PROMPT,
+  UI_MODES,
+  DEFAULT_UI_MODE,
+  MESSAGE_TYPES,
+} from '../../utils/constants.js'
 import { parsePdf } from '../../parsers/pdf-parser.js'
 import { parseDocx } from '../../parsers/docx-parser.js'
 
@@ -26,6 +35,7 @@ export default function Settings({ onClose, onLogout, onSaved }) {
   const [saving, setSaving]           = useState(false)
   const [saved, setSaved]             = useState(false)
   const [dragOver, setDragOver]       = useState(false)
+  const [uiMode, setUiMode]           = useState(DEFAULT_UI_MODE)
 
   /* Load persisted settings on mount */
   useEffect(() => {
@@ -35,14 +45,22 @@ export default function Settings({ onClose, onLogout, onSaved }) {
       localStore.get(LOCAL_KEYS.SYSTEM_PROMPT),
       localStore.get(LOCAL_KEYS.RESUME_TEXT),
       localStore.get(LOCAL_KEYS.JOB_DESCRIPTION),
-    ]).then(([key, mdl, prompt, resume, jd]) => {
+      storage.get(STORAGE_KEYS.UI_MODE),
+    ]).then(([key, mdl, prompt, resume, jd, mode]) => {
       if (key)    setApiKey(key)
       if (mdl)    setModel(mdl)
       if (prompt) setSystemPrompt(prompt)
       if (resume) setResumeText(resume)
       if (jd)     setJobDescription(jd)
+      setUiMode(mode === UI_MODES.SIDEPANEL ? UI_MODES.SIDEPANEL : DEFAULT_UI_MODE)
     })
   }, [])
+
+  function openFloatingNow() {
+    if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+      chrome.runtime.sendMessage({ type: MESSAGE_TYPES.OPEN_FLOATING })
+    }
+  }
 
   /* ── File parsing ─────────────────────────────────────────────────────── */
 
@@ -96,6 +114,7 @@ export default function Settings({ onClose, onLogout, onSaved }) {
       localStore.set(LOCAL_KEYS.SYSTEM_PROMPT, systemPrompt.trim()),
       localStore.set(LOCAL_KEYS.RESUME_TEXT, resumeText),
       localStore.set(LOCAL_KEYS.JOB_DESCRIPTION, jobDescription.trim()),
+      storage.set(STORAGE_KEYS.UI_MODE, uiMode),
     ])
     setSaving(false)
     setSaved(true)
@@ -286,6 +305,51 @@ export default function Settings({ onClose, onLogout, onSaved }) {
           <p className="mt-1 text-xs text-gray-400">
             The AI uses this to tailor responses to this specific role.
           </p>
+        </section>
+
+        {/* ── Display ─────────────────────────────────────────────────── */}
+        <section>
+          <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-gray-400">
+            Display
+          </h3>
+          <p className="mb-3 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+            Floating window opens beside your meeting on the desktop. Side panel stays docked inside Chrome.
+          </p>
+          <div className="space-y-2">
+            {[
+              [UI_MODES.FLOATING, 'Floating window', 'Recommended — drag to a second monitor'],
+              [UI_MODES.SIDEPANEL, 'Side panel', 'Docked inside the browser'],
+            ].map(([value, label, hint]) => (
+              <label
+                key={value}
+                className={`flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 transition ${
+                  uiMode === value
+                    ? 'border-blue-400 bg-blue-50 dark:border-blue-600 dark:bg-blue-900/20'
+                    : 'border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-600'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="ui-mode"
+                  value={value}
+                  checked={uiMode === value}
+                  onChange={() => setUiMode(value)}
+                  className="mt-1"
+                />
+                <span>
+                  <span className="block text-sm font-medium text-gray-800 dark:text-gray-200">{label}</span>
+                  <span className="text-xs text-gray-400">{hint}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={openFloatingNow}
+            className="mt-3 w-full rounded-xl border border-gray-200 py-2.5 text-sm font-semibold text-blue-600 transition hover:bg-blue-50 dark:border-gray-700 dark:text-blue-400 dark:hover:bg-blue-900/20"
+          >
+            Open floating window now
+          </button>
         </section>
 
         {/* ── Hotkeys ─────────────────────────────────────────────────── */}

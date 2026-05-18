@@ -1,12 +1,14 @@
 import React from 'react'
-import { Settings, Sun, Moon, Zap, RotateCcw } from 'lucide-react'
+import { Settings, Sun, Moon, Zap, RotateCcw, AppWindow } from 'lucide-react'
 
 export default function Header({
   onSettings,
   darkMode,
   onToggleDarkMode,
   onClearSession,
+  onPopOut,
   hasMessages,
+  isFloatingWindow,
 }) {
   return (
     <header className="flex shrink-0 items-center gap-2.5 border-b border-gray-100 bg-white px-3 py-2.5 dark:border-gray-800 dark:bg-gray-900">
@@ -20,7 +22,9 @@ export default function Header({
           AI Interview Assistant
         </p>
         <p className="text-[10px] text-gray-400">
-          Capture → AI coaching in real time
+          {isFloatingWindow
+            ? 'Floating window · place beside your meeting'
+            : 'Capture → AI coaching in real time'}
         </p>
       </div>
 
@@ -32,6 +36,15 @@ export default function Header({
             className="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-200"
           >
             <RotateCcw size={16} />
+          </button>
+        )}
+        {!isFloatingWindow && onPopOut && (
+          <button
+            onClick={onPopOut}
+            title="Open in floating window"
+            className="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-blue-500 dark:hover:bg-gray-800 dark:hover:text-blue-400"
+          >
+            <AppWindow size={16} />
           </button>
         )}
         <button

@@ -228,6 +228,17 @@ export default function MainLayout({
     addToast('Chat cleared — fresh session for this interview.', 'info')
   }
 
+  function handlePopOut() {
+    if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+      chrome.runtime.sendMessage({ type: MESSAGE_TYPES.OPEN_FLOATING })
+      addToast('Opening floating window…', 'info')
+    }
+  }
+
+  const isFloatingWindow =
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('display') === 'floating'
+
   /* ── Render ─────────────────────────────────────────────────────────── */
   return (
     <div className="relative flex h-full flex-col bg-white dark:bg-gray-900">
@@ -236,7 +247,9 @@ export default function MainLayout({
         onToggleDarkMode={onToggleDarkMode}
         onSettings={() => setShowSettings(true)}
         onClearSession={handleClearSession}
+        onPopOut={handlePopOut}
         hasMessages={messages.length > 0}
+        isFloatingWindow={isFloatingWindow}
       />
 
       <ChatArea messages={messages} />

@@ -7,7 +7,15 @@ export const CREDENTIALS = {
 export const STORAGE_KEYS = {
   AUTH: 'auth_state',
   DARK_MODE: 'dark_mode',
+  UI_MODE: 'ui_mode',
 }
+
+export const UI_MODES = {
+  FLOATING: 'floating',
+  SIDEPANEL: 'sidepanel',
+}
+
+export const DEFAULT_UI_MODE = UI_MODES.FLOATING
 
 /** chrome.storage.local — larger values (resume text, API key, etc.) */
 export const LOCAL_KEYS = {
@@ -23,6 +31,7 @@ export const MESSAGE_TYPES = {
   CAPTURED: 'CAPTIONS_CAPTURED',
   TRIGGER_CAPTURE: 'TRIGGER_CAPTURE',
   SEND: 'SEND_MESSAGE',
+  OPEN_FLOATING: 'OPEN_FLOATING',
 }
 
 export const OPENAI_MODELS = [

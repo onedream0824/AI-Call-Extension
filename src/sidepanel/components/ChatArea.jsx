@@ -73,23 +73,26 @@ function ReadyState() {
 /* ── Main chat area ─────────────────────────────────────────────────────── */
 
 export default function ChatArea({ messages }) {
-  const endRef = useRef(null)
+  const scrollRef = useRef(null)
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const el = scrollRef.current
+    if (!el) return
+    el.scrollTo({ top: 0, behavior: messages.length > 2 ? 'smooth' : 'auto' })
   }, [messages])
 
   if (messages.length === 0) {
     return <ReadyState />
   }
 
+  const newestFirst = [...messages].reverse()
+
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-4">
+    <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
       <div className="flex flex-col gap-4">
-        {messages.map((msg, i) => (
+        {newestFirst.map((msg, i) => (
           <Bubble key={msg.id ?? i} msg={msg} />
         ))}
-        <div ref={endRef} />
       </div>
     </div>
   )
