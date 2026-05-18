@@ -1,9 +1,12 @@
 /**
  * Builds the messages array sent to the OpenAI API.
- * Resume text is capped at ~3 000 tokens (≈12 000 chars) to stay within context limits.
+ * Includes prior Q&A from this session so answers stay contextual and non-repetitive.
  */
 
 const MAX_RESUME_CHARS = 12_000
+/** Max prior turns sent (user + assistant pairs). ~10 Q&As. */
+const MAX_HISTORY_MESSAGES = 20
+const MAX_MSG_CHARS = 2_500
 
 /**
  * @param {{
@@ -11,25 +14,63 @@ const MAX_RESUME_CHARS = 12_000
  *   resumeText: string,
  *   jobDescription: string,
  *   transcription: string,
+ *   history?: { role: string, content: string, streaming?: boolean }[],
  * }} opts
  * @returns {{ role: string, content: string }[]}
  */
-export function buildMessages({ systemPrompt, resumeText, jobDescription, transcription }) {
+export function buildMessages({
+  systemPrompt,
+  resumeText,
+  jobDescription,
+  transcription,
+  history = [],
+}) {
   const resume = (resumeText ?? '').trim().slice(0, MAX_RESUME_CHARS)
   const jd = (jobDescription ?? '').trim()
 
-  const parts = []
-  if (resume) parts.push(`## Candidate Resume\n${resume}`)
-  if (jd)     parts.push(`## Job Description\n${jd}`)
-  parts.push(`## What the interviewer just said\n${transcription.trim()}`)
-  parts.push(
-    '## Task\nReply with only the exact spoken answer I should say out loud. ' +
-    'Include one specific example from my background (resume/JD when relevant). ' +
-    'No thinking, no options, no advice — just the words I read.'
+  const systemParts = [systemPrompt.trim()]
+
+  if (resume) {
+    systemParts.push(
+      `\n\n---\n## Candidate resume (reference — pick a DIFFERENT story/metric each answer; do not repeat examples already used in this interview)\n${resume}`
+    )
+  }
+  if (jd) {
+    systemParts.push(`\n\n---\n## Job description\n${jd}`)
+  }
+
+  systemParts.push(
+    `\n\n---\n## How this chat works\n` +
+      `- Messages labeled user = what the interviewer said.\n` +
+      `- Messages labeled assistant = answers you already gave me to read aloud.\n` +
+      `- Read the full thread before replying. Do not re-introduce me or repeat stories/metrics/jokes from earlier turns.`
   )
 
-  return [
-    { role: 'system', content: systemPrompt },
-    { role: 'user',   content: parts.join('\n\n') },
-  ]
+  const messages = [{ role: 'system', content: systemParts.join('') }]
+
+  for (const msg of trimHistory(history)) {
+    messages.push({
+      role: msg.role === 'assistant' ? 'assistant' : 'user',
+      content: truncate(msg.content),
+    })
+  }
+
+  messages.push({
+    role: 'user',
+    content: truncate(transcription.trim()),
+  })
+
+  return messages
+}
+
+function trimHistory(history) {
+  return history
+    .filter((m) => (m.role === 'user' || m.role === 'assistant') && m.content?.trim() && !m.streaming)
+    .slice(-MAX_HISTORY_MESSAGES)
+}
+
+function truncate(text) {
+  const t = String(text).trim()
+  if (t.length <= MAX_MSG_CHARS) return t
+  return t.slice(0, MAX_MSG_CHARS) + '…'
 }

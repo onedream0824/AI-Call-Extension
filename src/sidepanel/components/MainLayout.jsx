@@ -160,6 +160,10 @@ export default function MainLayout({
       created_at: new Date().toISOString(),
     }
 
+    const historyForApi = messages.filter(
+      (m) => (m.role === 'user' || m.role === 'assistant') && m.content?.trim() && !m.streaming
+    )
+
     setMessages((m) => [...m, userMsg, aiMsg])
     setInputText('')
     setSending(true)
@@ -170,6 +174,7 @@ export default function MainLayout({
         resumeText:     settings.resumeText,
         jobDescription: settings.jobDescription,
         transcription:  text,
+        history:        historyForApi,
       })
 
       for await (const token of streamCompletion({
@@ -213,7 +218,15 @@ export default function MainLayout({
     } finally {
       setSending(false)
     }
-  }, [inputText, sending, rateLimited, settings])
+  }, [inputText, sending, rateLimited, settings, messages])
+
+  function handleClearSession() {
+    if (messages.length === 0) return
+    if (!window.confirm('Clear this interview chat? Use this when starting a new call.')) return
+    setMessages([])
+    setInputText('')
+    addToast('Chat cleared — fresh session for this interview.', 'info')
+  }
 
   /* ── Render ─────────────────────────────────────────────────────────── */
   return (
@@ -222,6 +235,8 @@ export default function MainLayout({
         darkMode={darkMode}
         onToggleDarkMode={onToggleDarkMode}
         onSettings={() => setShowSettings(true)}
+        onClearSession={handleClearSession}
+        hasMessages={messages.length > 0}
       />
 
       <ChatArea messages={messages} />

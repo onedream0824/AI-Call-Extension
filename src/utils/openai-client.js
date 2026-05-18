@@ -34,8 +34,8 @@ export async function* streamCompletion({ apiKey, model, messages }) {
       body: JSON.stringify({
         model,
         messages,
-        max_tokens: 300,
-        temperature: 0.3,
+        max_tokens: 350,
+        temperature: 0.55,
         stream: true,
       }),
     })
